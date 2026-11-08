@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [18, 20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: 单元测试
+        run: npm test
+      - name: 构建单文件产物
+        run: npm run build
+      - name: 校验产物无外部依赖
+        run: |
+          test -s dist/PagePeek.html
+          ! grep -q '<script[^>]*src=' dist/PagePeek.html
+      - name: 上传单文件产物
+        if: matrix.node == 22
+        uses: actions/upload-artifact@v4
+        with:
+          name: PagePeek-single-file
+          path: dist/PagePeek.html

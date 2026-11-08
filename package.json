@@ -1,0 +1,29 @@
+{
+  "name": "pagepeek",
+  "version": "1.0.0",
+  "description": "Zero-dependency, offline-first SQLite file inspector. Understand page-level layout, B-tree health and schema directly in your browser.",
+  "type": "commonjs",
+  "main": "src/sqlite.js",
+  "scripts": {
+    "test": "node --test tests/*.test.cjs",
+    "build": "node scripts/build.mjs",
+    "verify": "npm test && npm run build",
+    "serve": "node scripts/serve.cjs"
+  },
+  "keywords": [
+    "sqlite", "database", "inspector", "offline", "privacy",
+    "btree", "file-format", "zero-dependency", "browser", "diagnostics"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "src/",
+    "dist/",
+    "index.html",
+    "scripts/",
+    "README.md",
+    "LICENSE"
+  ]
+}

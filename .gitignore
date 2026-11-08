@@ -1,0 +1,22 @@
+# 依赖与运行时产物
+node_modules/
+coverage/
+.nyc_output/
+
+# 本地环境 / 编辑器 / 系统
+.env
+.env.*
+*.log
+.DS_Store
+.idea/
+.vscode/
+*.tmp
+*.swp
+
+# SQLite 运行时附属文件（不忽略 tests/fixture.db，它是测试夹具）
+*.db-journal
+*.db-wal
+*.db-shm
+!tests/fixture.db
+
+# 注意：dist/PagePeek.html 是刻意提交的可直接运行交付物，勿加入忽略列表
