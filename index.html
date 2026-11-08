@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>PagePeek · 离线 SQLite 文件内省器</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2230; --line:#2b3441;
+    --fg:#e6edf3; --muted:#8b98a9; --accent:#58a6ff; --accent2:#7ee787;
+    --warn:#f0b429; --danger:#ff7b72; --chip:#21262d;
+  }
+  @media (prefers-color-scheme: light){
+    :root{ --bg:#f6f8fa; --panel:#fff; --panel2:#f0f3f7; --line:#d8dee6;
+      --fg:#1f2328; --muted:#5c6773; --accent:#0969da; --accent2:#1a7f37;
+      --warn:#9a6700; --danger:#cf222e; --chip:#eef1f5; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+  a{color:var(--accent)}
+  .wrap{max-width:1180px;margin:0 auto;padding:24px 20px 80px}
+  header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:6px}
+  .logo{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;
+    background:linear-gradient(135deg,var(--accent),#a371f7);color:#fff;font-weight:800;font-size:19px}
+  h1{font-size:20px;margin:0;letter-spacing:.2px}
+  .tagline{color:var(--muted);font-size:13px}
+  .lang{margin-left:auto;display:flex;gap:4px;background:var(--panel);border:1px solid var(--line);
+    border-radius:9px;padding:3px}
+  .lang button{background:none;border:0;color:var(--muted);padding:5px 11px;border-radius:6px;
+    cursor:pointer;font-size:12px}
+  .lang button.on{background:var(--accent);color:#fff}
+  .privacy{margin:14px 0 18px;padding:10px 14px;border-radius:9px;font-size:13px;
+    background:color-mix(in srgb,var(--accent2) 10%,var(--panel));border:1px solid var(--line)}
+  #drop{border:2px dashed var(--line);border-radius:14px;padding:44px 20px;text-align:center;
+    background:var(--panel);cursor:pointer;transition:.18s}
+  #drop.hover{border-color:var(--accent);background:var(--panel2)}
+  #drop .big{font-size:17px;font-weight:600;margin-bottom:6px}
+  #drop .sub{color:var(--muted);font-size:13px}
+  #file{display:none}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:12px;margin-top:18px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .card .k{color:var(--muted);font-size:12px}
+  .card .v{font-size:21px;font-weight:700;margin-top:3px;font-variant-numeric:tabular-nums}
+  .card .v small{font-size:12px;font-weight:400;color:var(--muted)}
+  section{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:16px 18px;margin-top:16px}
+  section h2{font-size:15px;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+  .healthrow{display:flex;gap:22px;align-items:center;flex-wrap:wrap}
+  .ring{--p:0;width:104px;height:104px;border-radius:50%;flex:0 0 auto;
+    background:conic-gradient(var(--accent2) calc(var(--p)*1%),var(--chip) 0);
+    display:grid;place-items:center}
+  .ring::after{content:"";position:absolute;width:80px;height:80px;border-radius:50%;background:var(--panel)}
+  .ring span{position:relative;font-size:26px;font-weight:800;z-index:1}
+  .ringwrap{position:relative;display:grid;place-items:center}
+  .warns{flex:1;min-width:260px;display:flex;flex-direction:column;gap:8px}
+  .warn{border-left:3px solid var(--line);padding:7px 11px;background:var(--panel2);
+    border-radius:0 8px 8px 0;font-size:13px}
+  .warn.warning{border-color:var(--warn)} .warn.error{border-color:var(--danger)}
+  .warn.info{border-color:var(--accent)}
+  .warn code{color:var(--muted);font-size:11px;margin-right:6px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:600;font-size:12px}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+  .bar{height:9px;border-radius:6px;background:var(--chip);overflow:hidden;display:flex;margin:8px 0}
+  .bar i{display:block;height:100%}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;color:var(--muted);font-size:12px}
+  .legend b{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px}
+  details{border:1px solid var(--line);border-radius:8px;margin-top:8px;background:var(--panel2)}
+  summary{cursor:pointer;padding:9px 12px;font-size:13px;font-weight:600}
+  pre{margin:0;padding:12px;overflow:auto;font-size:12px;color:var(--muted);white-space:pre-wrap}
+  .chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}
+  .chips i{width:11px;height:11px;border-radius:2px;display:block;background:var(--chip)}
+  button.act{background:var(--accent);color:#fff;border:0;border-radius:8px;
+    padding:8px 14px;cursor:pointer;font-size:13px;font-weight:600}
+  button.act.ghost{background:var(--chip);color:var(--fg)}
+  .hidden{display:none}
+  footer{color:var(--muted);font-size:12px;text-align:center;margin-top:26px}
+  .err{color:var(--danger);margin-top:12px;font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">PP</div>
+    <div>
+      <h1>PagePeek</h1>
+      <div class="tagline" data-i18n="tagline"></div>
+    </div>
+    <div class="lang">
+      <button data-lang="zh-CN" class="on">简体</button>
+      <button data-lang="zh-TW">繁體</button>
+      <button data-lang="en">EN</button>
+    </div>
+  </header>
+
+  <div class="privacy" data-i18n="privacy"></div>
+
+  <div id="drop">
+    <div class="big" data-i18n="dropTitle"></div>
+    <div class="sub" data-i18n="dropSub"></div>
+  </div>
+  <input type="file" id="file" accept=".db,.sqlite,.sqlite3,.db3,application/x-sqlite3,*">
+  <div class="err hidden" id="err"></div>
+
+  <div id="result" class="hidden">
+    <div class="grid" id="cards"></div>
+
+    <section>
+      <h2>🩺 <span data-i18n="health"></span> <button class="act ghost" id="export" style="margin-left:auto" data-i18n="export"></button></h2>
+      <div class="healthrow">
+        <div class="ringwrap"><div class="ring" id="ring"><span id="score">0</span></div></div>
+        <div class="warns" id="warns"></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>📊 <span data-i18n="pageTypes"></span></h2>
+      <div class="bar" id="typeBar"></div>
+      <div class="legend" id="typeLegend"></div>
+      <div style="margin-top:14px">
+        <div class="chips" id="pageMap" title=""></div>
+        <div class="legend" style="margin-top:8px" data-i18n="pageMapHint"></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>🗂️ <span data-i18n="tables"></span></h2>
+      <table><thead><tr id="tableHead"></tr></thead><tbody id="tableBody"></tbody></table>
+    </section>
+
+    <section>
+      <h2>📜 <span data-i18n="schema"></span></h2>
+      <div id="schemaList"></div>
+    </section>
+  </div>
+
+  <footer>PagePeek v1.0.0 · MIT · <span data-i18n="footer"></span></footer>
+</div>
+
+<script src="./src/sqlite.js"></script>
+<script>
+(function(){
+  'use strict';
+  var I18N = {
+    'zh-CN': {
+      tagline:'离线 SQLite 文件内省器 · 页级结构 / 健康度 / Schema，一切都在浏览器里完成',
+      privacy:'🔒 隐私优先：文件只在本地内存中解析，不会上传、不会写入任何服务器，也不需要联网。',
+      dropTitle:'把 .db / .sqlite 文件拖到这里',
+      dropSub:'或点击选择文件 · 支持最大数百 MB · 无需安装、无需后端',
+      health:'健康诊断', export:'导出 JSON 报告',
+      pageTypes:'页类型分布', tables:'表与索引', schema:'Schema 定义',
+      pageMapHint:'每个方块代表一个页，颜色对应上方类型；悬停查看页号与利用率。',
+      footer:'纯前端 · 零依赖 · 单文件即可运行',
+      cols:['名称','类型','行数','B-tree 深度','占用页','溢出页','平均行大小'],
+      keys:{fileSize:'文件大小',pages:'总页数',pageSize:'页大小',objects:'表 / 索引',
+            freelist:'空闲页',overflow:'溢出页',util:'平均页利用率',journal:'日志模式',encoding:'文本编码'},
+      empty:'未检测到诊断项，文件状态良好。',
+      errPrefix:'解析失败：',
+      rows:'行', bytes:'字节', pagesUnit:'页'
+    },
+    'zh-TW': {
+      tagline:'離線 SQLite 檔案內省器 · 頁級結構 / 健康度 / Schema，全部在瀏覽器內完成',
+      privacy:'🔒 隱私優先：檔案只在本機記憶體中解析，不會上傳、不會寫入任何伺服器，也不需要連網。',
+      dropTitle:'把 .db / .sqlite 檔案拖到這裡',
+      dropSub:'或點擊選擇檔案 · 支援數百 MB · 無需安裝、無需後端',
+      health:'健康診斷', export:'匯出 JSON 報告',
+      pageTypes:'頁類型分佈', tables:'資料表與索引', schema:'Schema 定義',
+      pageMapHint:'每個方塊代表一個頁，顏色對應上方類型；滑鼠懸停可查看頁號與利用率。',
+      footer:'純前端 · 零依賴 · 單檔即可執行',
+      cols:['名稱','類型','筆數','B-tree 深度','佔用頁','溢位頁','平均列大小'],
+      keys:{fileSize:'檔案大小',pages:'總頁數',pageSize:'頁大小',objects:'表 / 索引',
+            freelist:'空閒頁',overflow:'溢位頁',util:'平均頁利用率',journal:'日誌模式',encoding:'文字編碼'},
+      empty:'未偵測到診斷項目，檔案狀態良好。',
+      errPrefix:'解析失敗：',
+      rows:'筆', bytes:'位元組', pagesUnit:'頁'
+    },
+    en: {
+      tagline:'Offline SQLite file inspector · page-level layout, health score and schema, entirely in your browser',
+      privacy:'🔒 Privacy first: the file is parsed in local memory only. Nothing is uploaded, stored on a server, or sent over the network.',
+      dropTitle:'Drop a .db / .sqlite file here',
+      dropSub:'or click to browse · handles hundreds of MB · no install, no backend',
+      health:'Health diagnostics', export:'Export JSON report',
+      pageTypes:'Page type distribution', tables:'Tables & indexes', schema:'Schema definitions',
+      pageMapHint:'Each square is one page, colored by type above. Hover for page number and utilization.',
+      footer:'Pure frontend · zero dependencies · runs from a single file',
+      cols:['Name','Type','Rows','B-tree depth','Pages','Overflow','Avg row size'],
+      keys:{fileSize:'File size',pages:'Total pages',pageSize:'Page size',objects:'Tables / indexes',
+            freelist:'Free pages',overflow:'Overflow pages',util:'Avg page util.',journal:'Journal mode',encoding:'Text encoding'},
+      empty:'No findings. The database looks healthy.',
+      errPrefix:'Parse failed: ',
+      rows:'rows', bytes:'bytes', pagesUnit:'pages'
+    }
+  };
+  var lang='zh-CN', report=null;
+  var COLORS={'leaf-table':'#58a6ff','interior-table':'#a371f7','leaf-index':'#7ee787','interior-index':'#f0b429','other':'#4b5563'};
+
+  function t(){return I18N[lang];}
+  function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function fmtBytes(n){
+    if(n<1024) return n+' B';
+    if(n<1024*1024) return (n/1024).toFixed(1)+' KB';
+    return (n/1024/1024).toFixed(2)+' MB';
+  }
+  function applyI18n(){
+    document.documentElement.lang=lang;
+    var nodes=document.querySelectorAll('[data-i18n]');
+    for(var i=0;i<nodes.length;i++){
+      var k=nodes[i].getAttribute('data-i18n'), v=t()[k];
+      if(typeof v==='string') nodes[i].textContent=v;
+    }
+    if(report) render(report);
+  }
+
+  function card(k,v,sub){
+    return '<div class="card"><div class="k">'+esc(k)+'</div><div class="v">'+v+
+      (sub?' <small>'+esc(sub)+'</small>':'')+'</div></div>';
+  }
+
+  function render(r){
+    report=r;
+    var k=t().keys, out='';
+    out+=card(k.fileSize,fmtBytes(r.fileSize));
+    out+=card(k.pages,r.pageCount,' / '+(r.pageCount*r.header.pageSize/1024/1024).toFixed(1)+' MB');
+    out+=card(k.pageSize,fmtBytes(r.header.pageSize));
+    out+=card(k.objects,r.tables.length);
+    out+=card(k.freelist,r.header.freelistPageCount);
+    out+=card(k.overflow,r.health.overflowPages);
+    out+=card(k.util,(r.health.averagePageUtilization*100).toFixed(1)+'%');
+    out+=card(k.journal,r.header.journalMode);
+    document.getElementById('cards').innerHTML=out;
+
+    var score=r.health.score;
+    var ring=document.getElementById('ring');
+    ring.style.setProperty('--p',score);
+    ring.style.background='conic-gradient('+(score>=80?'#7ee787':score>=60?'#f0b429':'#ff7b72')+' '+(score*1)+'%,var(--chip) 0)';
+    document.getElementById('score').textContent=score;
+
+    var ws=r.health.warnings;
+    document.getElementById('warns').innerHTML = ws.length ? ws.map(function(w){
+      return '<div class="warn '+w.level+'"><code>'+esc(w.code)+'</code>'+esc(w[lang==='en'?'en':'zh'])+'</div>';
+    }).join('') : '<div class="warn info">'+esc(t().empty)+'</div>';
+
+    var tc=r.pageTypeCounts, total=r.pageCount||1, bar='', legend='';
+    Object.keys(COLORS).forEach(function(key){
+      var n=tc[key]||0;
+      if(n) bar+='<i style="width:'+(n/total*100)+'%;background:'+COLORS[key]+'"></i>';
+      legend+='<span><b style="background:'+COLORS[key]+'"></b>'+esc(key)+' · '+n+'</span>';
+    });
+    document.getElementById('typeBar').innerHTML=bar;
+    document.getElementById('typeLegend').innerHTML=legend;
+
+    document.getElementById('pageMap').innerHTML=r.pages.concat(
+      Array.from({length:Math.max(0,r.pageCount-r.pages.length)},function(){return {type:'other'};})
+    ).map(function(p){
+      var u=Math.round((p.utilization||0)*100);
+      return '<i title="#'+esc(p.number||'-')+' · '+p.type+' · '+u+'%" style="background:'+
+        (COLORS[p.type]||COLORS.other)+';opacity:'+(0.35+0.65*(p.utilization||0.1)).toFixed(2)+'"></i>';
+    }).join('');
+
+    var cols=t().cols;
+    document.getElementById('tableHead').innerHTML=cols.map(function(c){return '<th>'+esc(c)+'</th>';}).join('');
+    document.getElementById('tableBody').innerHTML=r.tables.map(function(x){
+      return '<tr><td><b>'+esc(x.name)+'</b></td><td>'+esc(x.type)+'</td>'+
+        '<td class="num">'+x.rowCount.toLocaleString()+'</td><td class="num">'+x.btreeDepth+'</td>'+
+        '<td class="num">'+x.pageCount+'</td><td class="num">'+x.overflowPages+'</td>'+
+        '<td class="num">'+x.avgRowBytes+'</td></tr>';
+    }).join('');
+
+    document.getElementById('schemaList').innerHTML=r.schema.filter(function(s){return s.sql;}).map(function(s){
+      return '<details><summary>'+esc(s.type)+' · '+esc(s.name)+' <span style="color:var(--muted);font-weight:400">→ root page '+s.rootPage+'</span></summary><pre>'+esc(s.sql)+'</pre></details>';
+    }).join('');
+    document.getElementById('result').classList.remove('hidden');
+  }
+
+  function handle(file){
+    var err=document.getElementById('err');
+    err.classList.add('hidden');
+    var reader=new FileReader();
+    reader.onload=function(){
+      try{
+        render(PagePeekCore.parse(reader.result));
+        window.scrollTo({top:document.getElementById('result').offsetTop-20,behavior:'smooth'});
+      }catch(e){
+        err.textContent=t().errPrefix+e.message; err.classList.remove('hidden');
+      }
+    };
+    reader.onerror=function(){ err.textContent=t().errPrefix+file.name; err.classList.remove('hidden'); };
+    reader.readAsArrayBuffer(file);
+  }
+
+  var drop=document.getElementById('drop'), input=document.getElementById('file');
+  drop.addEventListener('click',function(){input.click();});
+  input.addEventListener('change',function(){ if(input.files[0]) handle(input.files[0]); });
+  ['dragenter','dragover'].forEach(function(ev){drop.addEventListener(ev,function(e){
+    e.preventDefault();drop.classList.add('hover');});});
+  ['dragleave','drop'].forEach(function(ev){drop.addEventListener(ev,function(e){
+    e.preventDefault();drop.classList.remove('hover');});});
+  drop.addEventListener('drop',function(e){ if(e.dataTransfer.files[0]) handle(e.dataTransfer.files[0]); });
+  document.querySelectorAll('.lang button').forEach(function(btn){
+    btn.addEventListener('click',function(){
+      document.querySelectorAll('.lang button').forEach(function(b){b.classList.remove('on');});
+      btn.classList.add('on'); lang=btn.getAttribute('data-lang'); applyI18n();
+    });
+  });
+  document.getElementById('export').addEventListener('click',function(){
+    if(!report) return;
+    var blob=new Blob([JSON.stringify(report,null,2)],{type:'application/json'});
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(blob); a.download='pagepeek-report.json'; a.click();
+    setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
+  });
+  applyI18n();
+})();
+</script>
+</body>
+</html>
